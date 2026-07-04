@@ -1,0 +1,108 @@
+# 定義所有的微服務容器，這整份檔案就是 Docker 的編排藍圖
+services:
+  
+  # 1. 資料庫層 (Database Layer)
+  # 我們選用輕量快速的 Alpine 版 PostgreSQL 作為所有 API 共享狀態的中心
+  db:
+    image: postgres:15-alpine
+    container_name: demo_postgres
+    environment:
+      # 設定資料庫的帳號、密碼與資料庫名稱
+      POSTGRES_USER: demo_user
+      POSTGRES_PASSWORD: demo_password
+      POSTGRES_DB: demo_db
+    volumes:
+      # 將初始化 SQL 腳本掛載進去，容器第一次啟動時會自動執行這個檔案來建表與塞預設資料
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      # 將資料庫加入 demo_db 這個虛擬網路，這樣 API 們才能找得到它
+      - demo_db
+
+  # 2. 後端 API 叢集 (API Server Cluster)
+  # 我們起了三台一模一樣的 API 伺服器來展示輪詢負載均衡
+  api1:
+    build: ./api             # 指定要在 api 資料夾底下使用 Dockerfile 來打包 Image
+    container_name: api1     # 容器名稱叫做 api1
+    environment:             
+      # 將資料庫連線字串傳給 API，並將自己的 HOSTNAME 設為 api1，方便前端辨識
+      - DATABASE_URL=postgres://demo_user:demo_password@db:5432/demo_db
+      - HOSTNAME=api1
+    labels:
+      - "demo_api=true"
+    depends_on:
+      - db                   # 確保 db 資料庫啟動之後，這台 API 才會跟著啟動
+    networks:
+      - demo_db              # 將這台機器加入相同的虛擬網路
+
+  api2:
+    build: ./api
+    container_name: api2
+    environment:
+      - DATABASE_URL=postgres://demo_user:demo_password@db:5432/demo_db
+      - HOSTNAME=api2
+    labels:
+      - "demo_api=true"
+    depends_on:
+      - db
+    networks:
+      - demo_db
+
+  api3:
+    build: ./api
+    container_name: api3
+    environment:
+      - DATABASE_URL=postgres://demo_user:demo_password@db:5432/demo_db
+      - HOSTNAME=api3
+    labels:
+      - "demo_api=true"
+    depends_on:
+      - db
+    networks:
+      - demo_db
+
+  # 3. 反向代理與負載均衡器 (Reverse Proxy & Load Balancer)
+  # Nginx 會擋在最前面，負責分發流量給 api1, api2, api3，並同時負責回傳前端靜態檔案
+  nginx:
+    image: nginx:alpine
+    container_name: demo_nginx
+    ports:
+      # 將你電腦實體的 8080 port 映射 (Mapping) 到容器內的 80 port
+      # 這樣你就能在瀏覽器輸入 http://localhost:8080 看到網頁
+      - "8080:80"
+    volumes:
+      # 將我們在本機寫好的 Nginx 設定檔掛載進去覆蓋官方預設值
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      # 將本機的 frontend 資料夾掛載到 Nginx 預設存放網頁的目錄
+      - ./frontend:/usr/share/nginx/html:ro
+    depends_on:
+      # 確保所有的 API 都啟動後，Nginx 才啟動
+      - api1
+      - api2
+      - api3
+    networks:
+      - demo_db
+
+  # 4. 自動化 DNS 更新工具 (docker-gen)
+  # 監聽 Docker socket，當有容器變動時自動產生 Nginx 設定檔並重載
+  docker-gen:
+    image: nginxproxy/docker-gen:latest
+    container_name: demo_docker_gen
+    command: -notify-sighup demo_nginx -watch /etc/docker-gen/templates/upstreams.tmpl /etc/nginx/conf.d/upstreams.conf
+    volumes:
+      # 必須掛載 docker.sock 才能收到容器起停的事件
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      # 掛載我們寫好的 template
+      - ./nginx/templates:/etc/docker-gen/templates:ro
+      # 將產生的 upstreams.conf 寫入 Nginx 的設定檔目錄
+      - ./nginx/conf.d:/etc/nginx/conf.d:rw
+    depends_on:
+      - nginx
+    networks:
+      - demo_db
+
+# 宣告自訂的橋接網路 (Bridge Network)，讓上述的容器可以透過「服務名稱」互相解析 DNS 進行通訊
+networks:
+  demo_db:
+    driver: bridge

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nginx 負載均衡展示</title>
+  <!-- 引入 Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-color: #000000;
+      --text-main: #ededed;
+      --text-muted: #888888;
+      --card-bg: #0a0a0a;
+      --border-color: #333333;
+      --accent: #ffffff;
+      --accent-hover: #cccccc;
+      --success: #10b981;
+      --success-dim: rgba(16, 185, 129, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      letter-spacing: -0.02em;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      padding: 2rem;
+    }
+
+    .card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 3rem;
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 3rem;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: #444;
+    }
+
+    /* 左側面板 */
+    .left-panel {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stats-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      margin-bottom: 2.5rem;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .counter {
+      font-size: 4.5rem;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .server-info {
+      font-size: 1.25rem;
+      font-weight: 500;
+      background: #111;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      display: inline-block;
+      color: var(--text-main);
+      font-variant-numeric: tabular-nums;
+      transition: all 0.2s ease;
+    }
+
+    .controls {
+      display: flex;
+      gap: 1rem;
+    }
+
+    button {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      padding: 0.75rem 1.25rem;
+      font-size: 0.9rem;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    button:hover {
+      background-color: var(--text-main);
+      color: var(--bg-color);
+    }
+
+    button.active {
+      background-color: var(--text-main);
+      color: var(--bg-color);
+      border-color: var(--text-main);
+    }
+
+    /* 右側面板 */
+    .right-panel {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border-color);
+      padding-left: 3rem;
+    }
+
+    .dashboard {
+      margin-bottom: 2rem;
+    }
+
+    .dashboard h3 {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
+
+    .node-list {
+      display: flex;
+      gap: 2rem;
+    }
+
+    .node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      transition: all 0.3s ease;
+      opacity: 0.4;
+      filter: grayscale(100%);
+    }
+
+    .node.active {
+      opacity: 1;
+      color: var(--text-main);
+      filter: grayscale(0%);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--success);
+      margin-bottom: 0.75rem;
+      box-shadow: 0 0 0 0 var(--success-dim);
+      transition: box-shadow 0.3s ease;
+    }
+
+    .node.active .dot {
+      box-shadow: 0 0 12px 2px var(--success-dim);
+    }
+
+    .node-count {
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      background: #111;
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      padding: 0.2rem 0.5rem;
+      color: var(--text-muted);
+      font-variant-numeric: tabular-nums;
+      transition: all 0.3s ease;
+    }
+
+    .node.active .node-count {
+      color: var(--text-main);
+      border-color: #555;
+    }
+
+    .log-wrapper {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .log-wrapper h3 {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .log-container {
+      height: 250px;
+      background: #050505;
+      padding: 1rem;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      overflow-y: auto;
+      overflow-x: auto;
+      white-space: nowrap;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .log-container .success-log { color: #888; }
+    .log-container .error-log { color: #ef4444; }
+    .log-container .info-log { color: #fff; }
+
+    .highlight-node {
+      color: #38bdf8;
+      font-weight: 600;
+    }
+
+    .log-container::-webkit-scrollbar { width: 6px; }
+    .log-container::-webkit-scrollbar-track { background: transparent; }
+    .log-container::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+
+    /* RWD 適應手機版 */
+    @media (max-width: 768px) {
+      .card {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+      }
+      .right-panel {
+        border-left: none;
+        border-top: 1px solid var(--border-color);
+        padding-left: 0;
+        padding-top: 2rem;
+      }
+      .controls {
+        flex-direction: column;
+      }
+      .log-container {
+        min-height: 150px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="card">
+      
+      <!-- 左側：數據與控制區 -->
+      <div class="left-panel">
+        <h1>負載均衡展示系統</h1>
+        <p class="subtitle">Nginx 高可用性與叢集分流即時監控</p>
+        
+        <div class="stats-group">
+          <div class="stat-item">
+            <span class="stat-label">資料庫累積呼叫次數</span>
+            <div class="counter" id="counterDisplay">--</div>
+          </div>
+          
+          <div class="stat-item">
+            <span class="stat-label">本次處理請求之伺服器</span>
+            <div class="server-info" id="serverDisplay">等待連線...</div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="fetchBtn">發送單次請求</button>
+          <button id="autoFetchBtn">自動輪詢：關閉</button>
+        </div>
+      </div>
+
+      <!-- 右側：監控儀表板與日誌區 -->
+      <div class="right-panel">
+        <div class="dashboard">
+          <h3>即時節點健康狀態 (Health Status)</h3>
+          <div class="node-list" id="nodeList">
+            <div class="node" id="node-api1"><div class="dot"></div>API-1<div class="node-count" id="count-api1">0</div></div>
+            <div class="node" id="node-api2"><div class="dot"></div>API-2<div class="node-count" id="count-api2">0</div></div>
+            <div class="node" id="node-api3"><div class="dot"></div>API-3<div class="node-count" id="count-api3">0</div></div>
+          </div>
+        </div>
+
+        <div class="log-wrapper">
+          <h3>即時請求日誌</h3>
+          <div class="log-container" id="logContainer">
+            <div class="info-log">系統初始化完成，等待請求中...</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
