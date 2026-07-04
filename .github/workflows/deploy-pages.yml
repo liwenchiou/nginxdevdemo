@@ -1,0 +1,46 @@
+name: Deploy Presentation to GitHub Pages
+
+on:
+  # 當有程式碼推送到 main 分支時自動觸發
+  push:
+    branches: ["main"]
+  # 允許在 GitHub 網頁手動觸發
+  workflow_dispatch:
+
+# 設定 GitHub Pages 所需的權限
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare Pages Artifact
+        # 將簡報檔複製到 public 資料夾，並重新命名為 index.html 以便預設讀取
+        run: |
+          mkdir public
+          cp presentation.html public/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'public'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
