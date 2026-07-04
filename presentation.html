@@ -196,8 +196,12 @@
       <p>天下沒有白吃的午餐，免費版的 Nginx 藏著一個巨大的地雷。</p>
       <div class="cards-wrapper reveal delay-1">
         <div class="card" style="border-top: 2px solid var(--danger);">
-          <h3 style="color: var(--danger);">⚠️ DNS 永久快取</h3>
-          <p>Nginx 啟動時會把容器的 IP 死死記在記憶體裡。<br><br>當 Docker 容器當機重啟、獲得<strong>全新 IP</strong> 時，Nginx 還是會傻傻地把流量往舊 IP 丟，導致系統癱瘓！</p>
+          <h3 style="color: var(--danger);">⚠️ DNS 永久快取 (DNS Caching)</h3>
+          <p>Nginx 啟動時會把容器的 IP 死死記在記憶體裡。<br><br>當 Docker 容器當機重啟、獲得<strong>全新 IP</strong> 時，Nginx 還是會傻傻地把流量往舊 IP 丟，導致大塞車甚至全面癱瘓。</p>
+        </div>
+        <div class="card" style="border-top: 2px solid #f59e0b; display: flex; flex-direction: column; justify-content: center;">
+          <h3 style="color: #f59e0b;">🔥 傳統悲劇解法</h3>
+          <p>工程師半夜收到 502 警報，爬起來連進伺服器，手動敲打指令：<br><br><code style="font-size: 1.1rem;">nginx -s reload</code></p>
         </div>
       </div>
     </div>
@@ -206,20 +210,20 @@
   <!-- Slide 5: The Solution -->
   <section id="slide-5">
     <div class="container reveal">
-      <h2>動態服務發現：自動化解法</h2>
-      <p>引入 <code>docker-gen</code> 打造企業級零感知熱更新。</p>
+      <h2>幕後功臣：docker-gen</h2>
+      <p>把原本需要「半夜手動敲指令」的髒活，全自動化的超強外掛。</p>
       <div class="cards-wrapper reveal delay-1">
-        <div class="card">
-          <h3 style="color: #38bdf8;">👀 1. 即時監聽</h3>
-          <p>24 小時緊盯 Docker Socket 的容器生命週期事件。</p>
+        <div class="card" style="padding: 2rem;">
+          <h3 style="color: #38bdf8;">👀 1. 監聽 (Watch)</h3>
+          <p>掛載 <code>docker.sock</code>，24 小時緊盯所有容器起停。任何節點變動，千分之一秒內馬上察覺。</p>
         </div>
-        <div class="card">
-          <h3 style="color: #a855f7;">✍️ 2. 動態重寫</h3>
-          <p>抓出最新存活的容器 IP，毫秒級重寫 <code>upstreams.conf</code>。</p>
+        <div class="card" style="padding: 2rem;">
+          <h3 style="color: #a855f7;">✍️ 2. 重寫 (Generate)</h3>
+          <p>依據 Go 模板 (<code>.tmpl</code>)，抓出最新存活的容器 IP，瞬間重寫 Nginx 路由設定檔。</p>
         </div>
-        <div class="card">
-          <h3 style="color: var(--success);">🔄 3. 無縫重載</h3>
-          <p>發送 <code>SIGHUP</code> 訊號，Nginx 不斷線 Reload 生效！</p>
+        <div class="card" style="padding: 2rem;">
+          <h3 style="color: var(--success);">🔄 3. 重載 (Notify)</h3>
+          <p>對 Nginx 容器發送 <code>SIGHUP</code> 訊號。讓 Nginx 在不斷線的情況下，完美熱重載 (Hot Reload)！</p>
         </div>
       </div>
     </div>
